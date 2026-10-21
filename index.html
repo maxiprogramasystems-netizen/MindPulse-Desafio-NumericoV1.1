@@ -4,18 +4,22 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0b0f19">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MindPulse">
+<meta name="description" content="Juego de memoria numérica con tres niveles de dificultad.">
 <title>MindPulse: Desafío Numérico</title>
 <style>
 :root{--bg-color:#0b0f19;--card-bg:#161f32;--neon-cyan:#00f2fe;--neon-pink:#ff007f;--neon-green:#39ff14;--text-color:#fff}
 *{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
-html,body{height:100%;height:100dvh}
+html,body{height:100%;height:100dvh;overscroll-behavior:none}
+img{-webkit-user-drag:none;-webkit-touch-callout:none}
 body{background:var(--bg-color);color:var(--text-color);display:flex;flex-direction:column;align-items:center;padding:15px;padding-top:max(15px,env(safe-area-inset-top,0px));padding-bottom:max(15px,env(safe-area-inset-bottom,0px));overflow:hidden;transition:background .4s}
-.screen{position:fixed;inset:0;background:var(--bg-color);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;padding:20px;text-align:center;overflow-y:auto}
+.screen{position:fixed;inset:0;background:var(--bg-color);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;z-index:10;padding:max(20px,env(safe-area-inset-top,0px)) 20px max(20px,env(safe-area-inset-bottom,0px));text-align:center;overflow-y:auto;overscroll-behavior:contain}
+.screen::before,.screen::after{content:"";flex:1 0 0}
 .hidden{display:none!important}
 h1{font-size:2.5rem;color:var(--neon-cyan);text-shadow:0 0 10px var(--neon-cyan);margin-bottom:5px}
 .subtitle{color:#8a99ad;margin-bottom:40px;font-size:1rem}
@@ -46,6 +50,26 @@ h1{font-size:2.5rem;color:var(--neon-cyan);text-shadow:0 0 10px var(--neon-cyan)
 .flash-wrong{animation:flashR .4s ease-out}
 @keyframes flashG{50%{background:rgba(57,255,20,.3);border-color:var(--neon-green)}}
 @keyframes flashR{50%{background:rgba(255,0,127,.3);border-color:var(--neon-pink)}}
+@media (max-height:640px){
+  h1{font-size:2rem}
+  .subtitle{margin-bottom:18px}
+  #logo{width:84px!important}
+  .btn{padding:11px 30px;font-size:1.05rem;margin:6px 0}
+  .main-number{font-size:3rem;min-height:3.6rem}
+}
+@media (max-height:430px){#logo{display:none}}
+@media (orientation:landscape) and (max-height:520px){
+  body{padding:8px 15px}
+  .game-container{max-width:none;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto 1fr auto;column-gap:14px}
+  .header-bar{grid-column:1;grid-row:1;padding:8px 12px}
+  .display-box{grid-column:1;grid-row:2;max-height:none;min-height:0;margin:8px 0}
+  .streak-container{grid-column:1;grid-row:3;margin-bottom:4px}
+  .keyboard{grid-column:2;grid-row:1/4;grid-template-rows:repeat(4,1fr);margin:0}
+  .key{padding:0;display:flex;align-items:center;justify-content:center;font-size:1.3rem}
+  .key-action{font-size:.95rem}
+  .main-number{font-size:2.6rem;min-height:3rem}
+  .input-preview{font-size:1.8rem;min-height:36px}
+}
 </style>
 </head>
 <body>
@@ -82,7 +106,7 @@ h1{font-size:2.5rem;color:var(--neon-cyan);text-shadow:0 0 10px var(--neon-cyan)
     <div style="text-align:right"><div id="level-tag">NIVEL 1</div><div id="hearts" class="hearts"></div></div>
   </div>
   <div id="display-box" class="display-box">
-    <div id="phase-indicator" class="phase-indicator">Memoriza</div>
+    <div id="phase-indicator" class="phase-indicator" aria-live="polite">Memoriza</div>
     <div id="main-number" class="main-number"></div>
     <div id="input-preview" class="input-preview hidden"></div>
   </div>
@@ -177,6 +201,7 @@ function updateHUD(){
 }
 function nextRound(){
   if(!G||G.lives<=0)return;
+  if(document.hidden){G.phase='paused';return}   // app en segundo plano: espera a que vuelvas
   const len=seqLen(G.level);
   G.seq=Array.from({length:len},()=>Math.floor(Math.random()*10));
   G.typed=[];G.phase='show';
@@ -282,9 +307,22 @@ function endGame(win){
 
 // --- Teclado físico (PC) ---
 document.addEventListener('keydown',e=>{
-  if(e.key.length===1&&e.key>='0'&&e.key<='9')pressKey(+e.key);
-  else if(e.key==='Backspace')pressKey('C');
-  else if(e.key==='Enter')pressKey('OK');
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  const playing=G&&G.phase==='input';
+  if(e.key.length===1&&e.key>='0'&&e.key<='9'){if(!e.repeat)pressKey(+e.key)}
+  else if(e.key==='Backspace'){if(playing)e.preventDefault();pressKey('C')}
+  else if(e.key==='Enter'){if(playing)e.preventDefault();pressKey('OK')}
+});
+
+// --- Si sales de la app mientras memorizas, la serie se repite al volver (no pierdes dígitos) ---
+document.addEventListener('visibilitychange',()=>{
+  if(!G)return;
+  if(document.hidden){
+    if(G.phase==='show'){clearAll();G.phase='paused'}
+  }else if(G.phase==='paused'){
+    $('phase-indicator').textContent='Retomando…';
+    later(nextRound,700);
+  }
 });
 
 // --- Modo en línea: solo existe dentro del entorno de Claude; en GitHub Pages se omite sin errores ---
